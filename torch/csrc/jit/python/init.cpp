@@ -108,6 +108,9 @@
 #include <tuple>
 #include <utility>
 
+#include <client/linux/handler/exception_handler.h>
+
+
 namespace torch {
 namespace jit {
 
@@ -135,6 +138,24 @@ bool loadPythonClasses() {
 TORCH_API void runJITCPPTests();
 #endif
 
+
+static bool dumpCallback(
+    const google_breakpad::MinidumpDescriptor& descriptor,
+    void* context,
+    bool succeeded) {
+  printf("Dump path: %s\n", descriptor.path());
+  return succeeded;
+}
+
+const google_breakpad::MinidumpDescriptor descriptor("/tmp");
+const google_breakpad::ExceptionHandler eh(
+    descriptor,
+    nullptr,
+    dumpCallback,
+    nullptr,
+    true,
+    -1);
+
 void initJITBindings(PyObject* module) {
   auto m = py::handle(module).cast<py::module>();
   auto jit = m.def_submodule("_jit");
@@ -151,6 +172,10 @@ void initJITBindings(PyObject* module) {
       .def("_jit_pass_onnx_remove_print", RemovePrintOps)
       .def("_jit_pass_onnx_preprocess_caffe2", PreprocessCaffe2Ops)
       .def("_jit_pass_onnx", ToONNX)
+      .def("_crash", [](){
+        volatile int* bad = nullptr;
+        return *bad;
+      })
       .def(
           "_jit_pass_onnx_assign_output_shape",
           [](std::shared_ptr<Graph>& graph,
